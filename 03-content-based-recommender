@@ -1,0 +1,110 @@
+import pandas as pd
+import numpy as np
+import csv
+import ast
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+
+def clean_credits_file(input_path='tmdb_5000_credits.csv', output_path='tmdb_5000_credits_cleaned.csv'):
+    with open(input_path, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        lines = list(reader)
+    
+    header = lines[0]
+    expected_len = len(header)
+
+    with open(output_path, 'w', encoding='utf-8', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        for line in lines[1:]:
+            if len(line) == expected_len:
+                writer.writerow(line)
+
+
+clean_credits_file()
+
+
+movies_df = pd.read_csv('tmdb_5000_movies.csv')
+credits_df = pd.read_csv('tmdb_5000_credits_cleaned.csv')
+
+
+
+
+movies_df = movies_df.merge(credits_df, left_on='id', right_on='movie_id')
+
+
+movies_df.rename(columns={
+    'title_x': 'title',
+    'overview': 'overview',
+    'genres': 'genres',
+    'keywords': 'keywords',
+    'cast': 'cast',
+    'crew': 'crew'
+}, inplace=True)
+
+
+movies_df = movies_df[['id', 'title', 'overview', 'genres', 'keywords', 'cast', 'crew']]
+
+# STEP 5: PARSE STRINGS TO PYTHON OBJECTS
+def parse(obj):
+    try:
+        return ast.literal_eval(obj)
+    except:
+        return []
+
+def get_genres(x):
+    return [i['name'] for i in parse(x)]
+
+def get_keywords(x):
+    return [i['name'] for i in parse(x)]
+
+def get_cast(x):
+    return [i['name'] for i in parse(x)[:3]]
+
+def get_director(x):
+    for i in parse(x):
+        if i.get('job') == 'Director':
+            return [i['name']]
+    return []
+
+movies_df['genres'] = movies_df['genres'].apply(get_genres)
+movies_df['keywords'] = movies_df['keywords'].apply(get_keywords)
+movies_df['cast'] = movies_df['cast'].apply(get_cast)
+movies_df['crew'] = movies_df['crew'].apply(get_director)
+
+# STEP 6: CREATE TAGS
+def clean_list(x):
+    return [i.replace(" ", "").lower() for i in x]
+
+movies_df['tags'] = movies_df['overview'].fillna('') + ' ' + \
+                    movies_df['genres'].apply(lambda x: ' '.join(clean_list(x))) + ' ' + \
+                    movies_df['keywords'].apply(lambda x: ' '.join(clean_list(x))) + ' ' + \
+                    movies_df['cast'].apply(lambda x: ' '.join(clean_list(x))) + ' ' + \
+                    movies_df['crew'].apply(lambda x: ' '.join(clean_list(x)))
+
+# STEP 7: VECTORIZATION
+cv = CountVectorizer(max_features=5000, stop_words='english')
+vectors = cv.fit_transform(movies_df['tags']).toarray()
+
+# STEP 8: SIMILARITY MATRIX
+similarity = cosine_similarity(vectors)
+
+
+def recommend(movie_title):
+    movie_title = movie_title.lower()
+    if movie_title not in movies_df['title'].str.lower().values:
+        return "Movie not found!"
+    
+    idx = movies_df[movies_df['title'].str.lower() == movie_title].index[0]
+    distances = list(enumerate(similarity[idx]))
+    movies = sorted(distances, key=lambda x: x[1], reverse=True)[1:6]
+    
+    recommendations = []
+    for i in movies:
+        recommendations.append(movies_df.iloc[i[0]].title)
+    return recommendations
+
+# EXAMPLE
+print("Recommendations for 'Avatar':")
+print(recommend('Avatar'))
