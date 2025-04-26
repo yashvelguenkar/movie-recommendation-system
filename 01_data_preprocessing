@@ -1,0 +1,44 @@
+import pandas as pd
+import numpy as np
+
+pd.set_option('display.max_columns', None)
+
+# Function to clean CSV by removing the last line if it's corrupted
+def clean_csv(input_path, output_path):
+    try:
+        with open(input_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+
+        if not lines[-1].endswith('\n'):
+            lines = lines[:-1]
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+
+    except Exception as e:
+        print(f"Error cleaning {input_path}: {e}")
+
+# Clean the files
+clean_csv('movies_metadata.csv', 'clean_movies_metadata.csv')
+clean_csv('credits.csv', 'clean_credits.csv')
+
+# Load the cleaned datasets
+try:
+    movies_df = pd.read_csv('clean_movies_metadata.csv', low_memory=False)
+except Exception as e:
+    print(f"Error loading movies_metadata: {e}")
+
+try:
+    ratings_df = pd.read_csv('ratings.csv')
+except Exception as e:
+    print(f"Error loading ratings: {e}")
+
+try:
+    credits_df = pd.read_csv('clean_credits.csv')
+except Exception as e:
+    print(f"Error loading credits: {e}")
+    
+    
+print(movies_df.shape)
+print(ratings_df.shape)
+print(credits_df.shape)
