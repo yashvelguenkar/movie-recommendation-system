@@ -1,0 +1,54 @@
+import pandas as pd
+from surprise import SVD, Dataset, Reader
+from surprise.model_selection import train_test_split
+from surprise import accuracy
+
+ratings_df = pd.read_csv('ratings 2.csv')
+
+reader = Reader(rating_scale=(0.5, 5))
+
+data = Dataset.load_from_df(ratings_df[['userId', 'movieId', 'rating']], reader)
+
+trainset, testset = train_test_split(data, test_size=0.2)
+
+svd = SVD()
+
+svd.fit(trainset)
+
+predictions = svd.test(testset)
+rmse = accuracy.rmse(predictions)
+print(f'RMSE: {rmse}')
+
+
+def get_movie_recommendations(user_id, num_recommendations=5):
+
+    all_movie_ids = ratings_df['movieId'].unique()
+
+  
+    predictions = [svd.predict(user_id, movie_id) for movie_id in all_movie_ids]
+
+
+    predictions.sort(key=lambda x: x.est, reverse=True)
+
+
+    top_movie_ids = [pred.iid for pred in predictions[:num_recommendations]]
+
+  
+    movie_titles = []
+    movies_df = pd.read_csv('movies.csv')  # Assuming you have a 'movies.csv' file with movie details
+    for movie_id in top_movie_ids:
+        movie_title = movies_df[movies_df['movieId'] == movie_id]['title'].values[0]
+        movie_titles.append(movie_title)
+
+    return movie_titles
+
+
+user_id_input = int(input("Enter user ID to get movie recommendations: "))
+
+
+recommendations = get_movie_recommendations(user_id_input)
+
+
+print(f"Recommendations for User {user_id_input}:")
+for movie in recommendations:
+    print(movie)
