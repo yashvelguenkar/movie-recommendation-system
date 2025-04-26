@@ -1,0 +1,55 @@
+import pandas as pd
+import ast
+
+movies_df = pd.read_csv('clean_movies_metadata.csv', low_memory=False)
+credits_df = pd.read_csv('clean_credits.csv')
+
+
+movies_df['id'] = pd.to_numeric(movies_df['id'], errors='coerce')
+credits_df['id'] = pd.to_numeric(credits_df['id'], errors='coerce')
+
+
+movies_df = movies_df.dropna(subset=['id'])
+credits_df = credits_df.dropna(subset=['id'])
+
+
+movies_df['id'] = movies_df['id'].astype(int)
+credits_df['id'] = credits_df['id'].astype(int)
+
+
+merged_df = movies_df.merge(credits_df, on='id')
+
+merged_df = merged_df[['id', 'title', 'genres', 'overview', 'cast', 'crew']]
+
+
+def convert(obj):
+    try:
+        return ast.literal_eval(obj)
+    except:
+        return []
+
+
+merged_df['genres'] = merged_df['genres'].apply(convert)
+merged_df['genres'] = merged_df['genres'].apply(lambda x: [i['name'] for i in x] if isinstance(x, list) else [])
+
+
+merged_df['cast'] = merged_df['cast'].apply(convert)
+merged_df['cast'] = merged_df['cast'].apply(lambda x: [i['name'] for i in x[:3]] if isinstance(x, list) else [])
+
+
+def get_director(crew_list):
+    for member in crew_list:
+        if member.get('job') == 'Director':
+            return member.get('name')
+    return None
+
+merged_df['crew'] = merged_df['crew'].apply(convert)
+merged_df['director'] = merged_df['crew'].apply(get_director)
+
+
+merged_df = merged_df.drop(columns=['crew'])
+
+
+merged_df = merged_df.reset_index(drop=True)
+
+merged_df.head()
